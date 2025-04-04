@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useSession } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -35,9 +36,17 @@ import { CommunicationHub } from "@/components/communication-hub"
 import { AnalyticsDashboard } from "@/components/analytics-dashboard"
 import { useIsMobile } from "@/hooks/use-mobile"
 
+
+
+
 export function DashboardView() {
   const [activeTab, setActiveTab] = useState("overview")
   const isMobile = useIsMobile()
+  const { data: session, status } = useSession();
+
+  useEffect(() => {
+    console.log("Session Details:", session); // Debugging line to check session data
+ },[])
 
   return (
     <div className="space-y-4 pb-16 md:pb-0">
@@ -48,12 +57,6 @@ export function DashboardView() {
             Welcome back, Officer Smith. You have <span className="font-medium text-red-500">12 active cases</span> and{" "}
             <span className="font-medium text-amber-500">5 pending messages</span>.
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button className="shadow-sm">
-            <Plus className="mr-2 h-4 w-4" />
-            New Case
-          </Button>
         </div>
       </div>
 
