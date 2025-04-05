@@ -9,7 +9,7 @@ interface Officer {
   badge_number: string;
   current_location: any; // Adjust based on your geography type
   active_cases: number;
-  max_capacity: number;
+  max_cases: number;
   is_available: boolean;
   user_id: string;
   station_id: string;
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
         badge_number,
         current_location,
         active_cases,
-        max_capacity,
+        max_cases,
         is_available,
         user_id,
         station_id,
