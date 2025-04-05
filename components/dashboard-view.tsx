@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertCircle,
   Clock,
@@ -18,7 +18,7 @@ import {
   Upload,
   User2,
   X,
-} from "lucide-react"
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,27 +26,145 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
-import { CaseTimeline } from "@/components/case-timeline"
-import { EvidenceGallery } from "@/components/evidence-gallery"
-import { CrimeMap } from "@/components/crime-map"
-import { CommunicationHub } from "@/components/communication-hub"
-import { AnalyticsDashboard } from "@/components/analytics-dashboard"
-import { useIsMobile } from "@/hooks/use-mobile"
+} from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { CaseTimeline } from "../components/case-timeline";
+import { EvidenceGallery } from "../components/evidence-gallery";
+import { CrimeMap } from "../components/crime-map";
+import { CommunicationHub } from "../components/communication-hub";
+import { AnalyticsDashboard } from "../components/analytics-dashboard";
+import { useIsMobile } from "@/hooks/use-mobile";
 
+// Define the Officer type
+interface Officer {
+  id: string;
+  badge_number: string;
+  current_location: any;
+  active_cases: number;
+  max_capacity: number;
+  is_available: boolean;
+  user_id: string;
+  station_id: string;
+  created_at: string;
+  updated_at: string;
+  users: {
+    id: string;
+    email: string;
+    role: string;
+    phone: string;
+    created_at: string;
+    updated_at: string;
+  };
+}
 
-
+// Define the Report type based on the crime_reports table schema
+interface Report {
+  id: string;
+  crime_type: string;
+  description: string;
+  priority: "HIGH" | "NORMAL" | "EMERGENCY";
+  status: string;
+  complainant_id: string;
+  officer_id: string;
+  station_id: string;
+  created_at: string;
+  updated_at: string;
+  location: {
+    type: string;
+    coordinates: [number, number]; // [longitude, latitude]
+  };
+  media: string[];
+  assigned_officer: string;
+  current_status: string;
+  latitude: number;
+  longitude: number;
+}
 
 export function DashboardView() {
-  const [activeTab, setActiveTab] = useState("overview")
-  const isMobile = useIsMobile()
+  const [activeTab, setActiveTab] = useState("overview");
+  const [officer, setOfficer] = useState<Officer | null>(null);
+  const [reports, setReports] = useState<Report[]>([]); // State for crime reports
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [reportsLoading, setReportsLoading] = useState<boolean>(false);
+  const isMobile = useIsMobile();
   const { data: session, status } = useSession();
 
+  // Fetch officer details using the API
   useEffect(() => {
-    console.log("Session Details:", session); // Debugging line to check session data
- },[])
+    async function fetchOfficer() {
+      if (status !== "authenticated" || !session?.user?.id) return;
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch("/api/officer");
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to fetch officer details");
+        }
+
+        setOfficer(data);
+      } catch (err) {
+        console.error("Error fetching officer details:", err);
+        setError("An error occurred while fetching officer details");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchOfficer();
+  }, [session, status]);
+
+  // Fetch crime reports for the officer
+  useEffect(() => {
+    async function fetchReports() {
+      if (!officer?.id) return;
+
+      setReportsLoading(true);
+
+      try {
+        const response = await fetch(`/api/reports/${officer.id}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to fetch crime reports");
+        }
+
+        setReports(data);
+      } catch (err) {
+        console.error("Error fetching crime reports:", err);
+        setError("An error occurred while fetching crime reports");
+      } finally {
+        setReportsLoading(false);
+      }
+    }
+
+    fetchReports();
+  }, [officer]);
+
+  useEffect(() => {
+    console.log("Session Details:", session);
+  }, [session]);
+
+  if (status === "loading") {
+    return <div>Loading...</div>;
+  }
+
+  if (status === "unauthenticated") {
+    return <div>Please sign in to access the dashboard.</div>;
+  }
+
+  if (loading) {
+    return <div>Loading officer details...</div>;
+  }
+
+  if (error) {
+    return <div className="text-red-500">{error}</div>;
+  }
 
   return (
     <div className="space-y-4 pb-16 md:pb-0">
@@ -54,8 +172,8 @@ export function DashboardView() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Officer Dashboard</h1>
           <p className="text-muted-foreground">
-            Welcome back, Officer Smith. You have <span className="font-medium text-red-500">12 active cases</span> and{" "}
-            <span className="font-medium text-amber-500">5 pending messages</span>.
+            Welcome back, Officer {officer?.users?.email || "Unknown"}. You have{" "}
+            <span className="font-medium text-red-500">{reports.length || 0} active cases</span>
           </p>
         </div>
       </div>
@@ -87,8 +205,7 @@ export function DashboardView() {
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">12</div>
-                <p className="text-xs text-muted-foreground">+2 from yesterday</p>
+                <div className="text-2xl font-bold">{reports.length || 0}</div>
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-gray-800 shadow-sm">
@@ -97,8 +214,9 @@ export function DashboardView() {
                 <AlertCircle className="h-4 w-4 text-red-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">4</div>
-                <p className="text-xs text-muted-foreground">+1 from yesterday</p>
+                <div className="text-2xl font-bold">
+                  {reports.filter((report) => report.priority === "HIGH" || report.priority === "EMERGENCY").length}
+                </div>
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-gray-800 shadow-sm">
@@ -108,17 +226,6 @@ export function DashboardView() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">5</div>
-                <p className="text-xs text-muted-foreground">-2 from yesterday</p>
-              </CardContent>
-            </Card>
-            <Card className="bg-white dark:bg-gray-800 shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Avg. Response Time</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">14.2m</div>
-                <p className="text-xs text-muted-foreground">-2.4m from last week</p>
               </CardContent>
             </Card>
           </div>
@@ -141,46 +248,32 @@ export function DashboardView() {
                 </div>
               </CardHeader>
               <CardContent>
-                <ScrollArea className={`${isMobile ? "h-[300px]" : "h-[400px]"} pr-4`}>
-                  <div className="space-y-4">
-                    <CaseCard
-                      id="2023-0456"
-                      title="Theft Report"
-                      description="Stolen vehicle from parking garage"
-                      priority="urgent"
-                      location="Downtown, 5th & Main"
-                      time="2 hours ago"
-                      officer="J. Smith"
-                    />
-                    <CaseCard
-                      id="2023-0455"
-                      title="Assault"
-                      description="Physical altercation at local bar"
-                      priority="urgent"
-                      location="Nightlife District, Club Azure"
-                      time="5 hours ago"
-                      officer="J. Smith"
-                    />
-                    <CaseCard
-                      id="2023-0452"
-                      title="Vandalism"
-                      description="Graffiti on public property"
-                      priority="investigation"
-                      location="Westside Park"
-                      time="1 day ago"
-                      officer="J. Smith"
-                    />
-                    <CaseCard
-                      id="2023-0448"
-                      title="Noise Complaint"
-                      description="Loud music from residential property"
-                      priority="investigation"
-                      location="Riverside Apartments, Unit 304"
-                      time="2 days ago"
-                      officer="J. Smith"
-                    />
-                  </div>
-                </ScrollArea>
+                {reportsLoading ? (
+                  <div>Loading cases...</div>
+                ) : reports.length === 0 ? (
+                  <div>No active cases found.</div>
+                ) : (
+                  <ScrollArea className={`${isMobile ? "h-[300px]" : "h-[400px]"} pr-4`}>
+                    <div className="space-y-4">
+                      {reports.map((report) => (
+                        <CaseCard
+                          key={report.id}
+                          id={report.id}
+                          title={report.crime_type}
+                          description={report.description}
+                          priority={report.priority}
+                          location={
+                            report.latitude && report.longitude
+                              ? `${report.latitude}, ${report.longitude}`
+                              : "Unknown location"
+                          }
+                          time={new Date(report.created_at).toLocaleString()}
+                          officer={officer?.users?.email || "Unknown"}
+                        />
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
               </CardContent>
               <CardFooter>
                 <Button variant="outline" className="w-full">
@@ -253,7 +346,7 @@ export function DashboardView() {
               <Tabs defaultValue="active">
                 <TabsList className="mb-4 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
                   <TabsTrigger value="active" className="rounded-md">
-                    Active (12)
+                    Active ({reports.length || 0})
                   </TabsTrigger>
                   <TabsTrigger value="pending" className="rounded-md">
                     Pending (3)
@@ -270,45 +363,42 @@ export function DashboardView() {
                           <Filter className="mr-2 h-4 w-4" />
                           Filter
                         </Button>
-                        <Button variant="outline" size="sm" className="md:hidden">
+                        🙂<Button variant="outline" size="sm" className="md:hidden">
                           <Filter className="h-4 w-4" />
                         </Button>
                         <Button variant="outline" size="sm" className="hidden md:flex">
                           Sort by: Recent
                         </Button>
                       </div>
-                      <div className="text-sm text-muted-foreground">Showing 12 of 12 cases</div>
+                      <div className="text-sm text-muted-foreground">
+                        Showing {reports.length || 0} of {reports.length || 0} cases
+                      </div>
                     </div>
 
                     <div className="space-y-4">
-                      <CaseCard
-                        id="2023-0456"
-                        title="Theft Report"
-                        description="Stolen vehicle from parking garage"
-                        priority="urgent"
-                        location="Downtown, 5th & Main"
-                        time="2 hours ago"
-                        officer="J. Smith"
-                        expanded={true}
-                      />
-                      <CaseCard
-                        id="2023-0455"
-                        title="Assault"
-                        description="Physical altercation at local bar"
-                        priority="urgent"
-                        location="Nightlife District, Club Azure"
-                        time="5 hours ago"
-                        officer="J. Smith"
-                      />
-                      <CaseCard
-                        id="2023-0452"
-                        title="Vandalism"
-                        description="Graffiti on public property"
-                        priority="investigation"
-                        location="Westside Park"
-                        time="1 day ago"
-                        officer="J. Smith"
-                      />
+                      {reportsLoading ? (
+                        <div>Loading cases...</div>
+                      ) : reports.length === 0 ? (
+                        <div>No active cases found.</div>
+                      ) : (
+                        reports.map((report) => (
+                          <CaseCard
+                            key={report.id}
+                            id={report.id}
+                            title={report.crime_type}
+                            description={report.description}
+                            priority={report.priority}
+                            location={
+                              report.latitude && report.longitude
+                                ? `${report.latitude}, ${report.longitude}`
+                                : "Unknown location"
+                            }
+                            time={new Date(report.created_at).toLocaleString()}
+                            officer={officer?.users?.email || "Unknown"}
+                            expanded={report.id === reports[0]?.id} // Expand the first report by default
+                          />
+                        ))
+                      )}
                     </div>
                   </div>
                 </TabsContent>
@@ -330,32 +420,37 @@ export function DashboardView() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }
 
 interface CaseCardProps {
-  id: string
-  title: string
-  description: string
-  priority: "urgent" | "investigation" | "resolved"
-  location: string
-  time: string
-  officer: string
-  expanded?: boolean
+  id: string;
+  title: string;
+  description: string;
+  priority: "HIGH" | "NORMAL" | "EMERGENCY"; // Updated to match Report interface
+  location: string;
+  time: string;
+  officer: string;
+  expanded?: boolean;
 }
 
 function CaseCard({ id, title, description, priority, location, time, officer, expanded = false }: CaseCardProps) {
-  const [isExpanded, setIsExpanded] = useState(expanded)
-  const isMobile = useIsMobile()
+  const [isExpanded, setIsExpanded] = useState(expanded);
+  const isMobile = useIsMobile();
+
+  // Map priority to display values and colors
+  const priorityDisplay = {
+    EMERGENCY: { label: "Emergency", color: "bg-red-600" },
+    HIGH: { label: "High Priority", color: "bg-red-500" },
+    NORMAL: { label: "Normal", color: "bg-amber-500" },
+  };
+
+  const currentPriority = priorityDisplay[priority] || { label: "Normal", color: "bg-amber-500" };
 
   return (
     <Card className="overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
       <div className="flex">
-        <div
-          className={`w-1.5 ${
-            priority === "urgent" ? "bg-red-500" : priority === "investigation" ? "bg-amber-500" : "bg-green-600"
-          }`}
-        />
+        <div className={`w-1.5 ${currentPriority.color}`} />
         <div className="flex-1">
           <CardHeader className="pb-2">
             <div className="flex items-start justify-between">
@@ -365,16 +460,8 @@ function CaseCard({ id, title, description, priority, location, time, officer, e
                   <Badge variant="outline" className="text-xs">
                     #{id}
                   </Badge>
-                  <Badge
-                    className={`text-xs ${
-                      priority === "urgent"
-                        ? "bg-red-500"
-                        : priority === "investigation"
-                          ? "bg-amber-500"
-                          : "bg-green-600"
-                    }`}
-                  >
-                    {priority === "urgent" ? "Urgent" : priority === "investigation" ? "Investigation" : "Resolved"}
+                  <Badge className={`text-xs ${currentPriority.color}`}>
+                    {currentPriority.label}
                   </Badge>
                 </div>
                 <CardDescription className="mt-1">{description}</CardDescription>
@@ -469,14 +556,14 @@ function CaseCard({ id, title, description, priority, location, time, officer, e
         </div>
       </div>
     </Card>
-  )
+  );
 }
 
 interface AlertCardProps {
-  title: string
-  description: string
-  time: string
-  type: "urgent" | "evidence" | "update" | "message" | "notification" | "system"
+  title: string;
+  description: string;
+  time: string;
+  type: "urgent" | "evidence" | "update" | "message" | "notification" | "system";
 }
 
 function AlertCard({ title, description, time, type }: AlertCardProps) {
@@ -512,6 +599,7 @@ function AlertCard({ title, description, time, type }: AlertCardProps) {
         <p className="text-xs text-muted-foreground mt-2">{time}</p>
       </CardContent>
     </Card>
-  )
+  );
 }
 
+export default DashboardView;
