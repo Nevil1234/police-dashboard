@@ -20,7 +20,7 @@ import mapboxgl from "mapbox-gl";
 import 'mapbox-gl/dist/mapbox-gl.css';
 import Heatmap from "@/components/HeatMap";
 // Set Mapbox access token
-mapboxgl.accessToken = 'pk.eyJ1IjoiYWRpdG5ldiIsImEiOiJjbTh6b3V1eHgwY3RxMndyeXFqcGdlY2ltIn0.4ENtBsKbc-zR9PpHB-CGug';
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
 // Type definitions
 interface Station {
