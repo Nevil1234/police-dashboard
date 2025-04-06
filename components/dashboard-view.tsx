@@ -463,7 +463,7 @@ export function DashboardView() {
         </TabsContent>
 
         <TabsContent value="map">
-          <CrimeMap />
+          {/* <CrimeMap /> */}
         </TabsContent>
 
         <TabsContent value="analytics">
