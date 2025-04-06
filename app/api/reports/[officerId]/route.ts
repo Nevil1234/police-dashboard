@@ -72,7 +72,7 @@ export async function GET(
       `
       )
       .eq("assigned_officer", officerId)
-      .eq("current_status", "active"); // Fetch only active reports
+      
 
     if (error) {
       console.error("Error fetching crime reports:", error.message);

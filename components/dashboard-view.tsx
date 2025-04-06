@@ -42,7 +42,7 @@ interface Officer {
   badge_number: string;
   current_location: any;
   active_cases: number;
-  max_capacity: number;
+  max_cases: number;
   is_available: boolean;
   user_id: string;
   station_id: string;
@@ -75,7 +75,7 @@ interface Report {
     coordinates: [number, number]; // [longitude, latitude]
   };
   media: string[];
-  assigned_officer: string;
+  assigned_officer: string | null;
   current_status: string;
   latitude: number;
   longitude: number;
@@ -84,7 +84,8 @@ interface Report {
 export function DashboardView() {
   const [activeTab, setActiveTab] = useState("overview");
   const [officer, setOfficer] = useState<Officer | null>(null);
-  const [reports, setReports] = useState<Report[]>([]); // State for crime reports
+  const [reports, setReports] = useState<Report[]>([]); // All assigned reports
+  const [emergencyReports, setEmergencyReports] = useState<Report[]>([]); // Emergency reports
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [reportsLoading, setReportsLoading] = useState<boolean>(false);
@@ -119,12 +120,13 @@ export function DashboardView() {
     fetchOfficer();
   }, [session, status]);
 
-  // Fetch crime reports for the officer
+  // Fetch crime reports for the officer (all assigned reports)
   useEffect(() => {
     async function fetchReports() {
       if (!officer?.id) return;
 
       setReportsLoading(true);
+      setError(null);
 
       try {
         const response = await fetch(`/api/reports/${officer.id}`);
@@ -134,10 +136,12 @@ export function DashboardView() {
           throw new Error(data.error || "Failed to fetch crime reports");
         }
 
-        setReports(data);
+        const reportsData = Array.isArray(data) ? data : [];
+        setReports(reportsData);
       } catch (err) {
         console.error("Error fetching crime reports:", err);
         setError("An error occurred while fetching crime reports");
+        setReports([]); // Reset to empty array on error
       } finally {
         setReportsLoading(false);
       }
@@ -146,9 +150,65 @@ export function DashboardView() {
     fetchReports();
   }, [officer]);
 
+  // Fetch emergency reports (unassigned emergencies)
+  const fetchEmergencyReports = async () => {
+    if (!officer?.id) return;
+
+    setReportsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/emergency-reports`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log("Emergency reports data:", data); // Debug log
+      const emergencyData = Array.isArray(data) ? data : [];
+      setEmergencyReports(emergencyData);
+    } catch (err) {
+      console.error("Error fetching emergency reports:", err);
+      setError(`An error occurred while fetching emergency reports:`);
+      setEmergencyReports([]); // Reset to empty array on error
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEmergencyReports();
+  }, [officer]); // Only depend on officer for initial fetch
+
+  // Function to assign a case to the officer
+  const assignCase = async (reportId: string) => {
+    if (!officer?.id) return;
+
+    try {
+      const response = await fetch(`/api/assign-case`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reportId, officerId: officer.id }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to assign case");
+      }
+
+      // Refresh emergency reports after successful assignment
+      await fetchEmergencyReports();
+    } catch (err) {
+      console.error("Error assigning case:", err);
+      setError("An error occurred while assigning the case");
+    }
+  };
+
   useEffect(() => {
     console.log("Session Details:", session);
-  }, [session]);
+    console.log("Reports:", reports);
+    console.log("Emergency Reports:", emergencyReports); // Debug log to check emergency reports
+  }, [session, reports, emergencyReports]);
 
   if (status === "loading") {
     return <div>Loading...</div>;
@@ -168,6 +228,37 @@ export function DashboardView() {
 
   return (
     <div className="space-y-4 pb-16 md:pb-0">
+      {/* Emergency Reports at the Top */}
+      {emergencyReports.length > 0 && (
+        <div className="bg-red-100 border border-red-400 text-red-700 p-4 rounded-md mb-4">
+          <h2 className="text-lg font-semibold mb-2">Urgent Emergency Reports</h2>
+          <ScrollArea className="h-[200px] pr-4">
+            {emergencyReports.map((report) => (
+              <Card key={report.id} className="mb-2 bg-white shadow-sm">
+                <CardHeader className="p-2">
+                  <CardTitle className="text-sm">{report.crime_type}</CardTitle>
+                </CardHeader>
+                <CardContent className="p-2 text-sm">
+                  <p>{report.description}</p>
+                  <p>Location: {report.latitude}, {report.longitude}</p>
+                  <p>Reported: {new Date(report.created_at).toLocaleString()}</p>
+                </CardContent>
+                <CardFooter className="p-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => assignCase(report.id)}
+                  >
+                    Assign to Me
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </ScrollArea>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Officer Dashboard</h1>
@@ -215,7 +306,9 @@ export function DashboardView() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {reports.filter((report) => report.priority === "HIGH" || report.priority === "EMERGENCY").length}
+                  {reports.length > 0
+                    ? reports.filter((report) => report.priority === "HIGH" || report.priority === "EMERGENCY").length
+                    : 0}
                 </div>
               </CardContent>
             </Card>
@@ -250,7 +343,7 @@ export function DashboardView() {
               <CardContent>
                 {reportsLoading ? (
                   <div>Loading cases...</div>
-                ) : reports.length === 0 ? (
+                ) : !Array.isArray(reports) || reports.length === 0 ? (
                   <div>No active cases found.</div>
                 ) : (
                   <ScrollArea className={`${isMobile ? "h-[300px]" : "h-[400px]"} pr-4`}>
@@ -278,48 +371,6 @@ export function DashboardView() {
               <CardFooter>
                 <Button variant="outline" className="w-full">
                   View All Cases
-                </Button>
-              </CardFooter>
-            </Card>
-
-            <Card className="lg:col-span-3 bg-white dark:bg-gray-800 shadow-sm">
-              <CardHeader>
-                <CardTitle>Recent Alerts</CardTitle>
-                <CardDescription>Latest notifications and updates</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className={`${isMobile ? "h-[300px]" : "h-[400px]"} pr-4`}>
-                  <div className="space-y-4">
-                    <AlertCard
-                      title="New Evidence Uploaded"
-                      description="Officer Johnson uploaded new photos to case #2023-0456"
-                      time="10 minutes ago"
-                      type="evidence"
-                    />
-                    <AlertCard
-                      title="Urgent: Backup Requested"
-                      description="Officer Rodriguez requesting assistance at 7th & Oak"
-                      time="25 minutes ago"
-                      type="urgent"
-                    />
-                    <AlertCard
-                      title="Case Status Updated"
-                      description="Case #2023-0442 changed to 'Under Investigation'"
-                      time="1 hour ago"
-                      type="update"
-                    />
-                    <AlertCard
-                      title="New Message from Civilian"
-                      description="Jane Doe sent a message regarding case #2023-0448"
-                      time="2 hours ago"
-                      type="message"
-                    />
-                  </div>
-                </ScrollArea>
-              </CardContent>
-              <CardFooter>
-                <Button variant="outline" className="w-full">
-                  View All Alerts
                 </Button>
               </CardFooter>
             </Card>
@@ -363,7 +414,7 @@ export function DashboardView() {
                           <Filter className="mr-2 h-4 w-4" />
                           Filter
                         </Button>
-                        🙂<Button variant="outline" size="sm" className="md:hidden">
+                        <Button variant="outline" size="sm" className="md:hidden">
                           <Filter className="h-4 w-4" />
                         </Button>
                         <Button variant="outline" size="sm" className="hidden md:flex">
@@ -378,7 +429,7 @@ export function DashboardView() {
                     <div className="space-y-4">
                       {reportsLoading ? (
                         <div>Loading cases...</div>
-                      ) : reports.length === 0 ? (
+                      ) : !Array.isArray(reports) || reports.length === 0 ? (
                         <div>No active cases found.</div>
                       ) : (
                         reports.map((report) => (
@@ -412,7 +463,7 @@ export function DashboardView() {
         </TabsContent>
 
         <TabsContent value="map">
-          <CrimeMap />
+          {/* <CrimeMap /> */}
         </TabsContent>
 
         <TabsContent value="analytics">
@@ -427,7 +478,7 @@ interface CaseCardProps {
   id: string;
   title: string;
   description: string;
-  priority: "HIGH" | "NORMAL" | "EMERGENCY"; // Updated to match Report interface
+  priority: "HIGH" | "NORMAL" | "EMERGENCY";
   location: string;
   time: string;
   officer: string;

@@ -7,20 +7,25 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setErrorMsg("");
+
     const res = await signIn("credentials", {
       email,
       password,
       redirect: false,
     });
 
+    setLoading(false);
+
     if (res?.error) {
       setErrorMsg("Invalid email or password");
     } else {
-      // Fetch the session to get the user's role
       const sessionRes = await fetch("/api/auth/session");
       const session = await sessionRes.json();
 
@@ -29,14 +34,14 @@ export default function LoginPage() {
       } else if (session?.user?.role === "POLICE_STATION") {
         router.push("/dashboard/police-station");
       } else {
-        router.push("/auth/login"); // Fallback for unknown roles
+        router.push("/auth/login");
       }
     }
   };
 
   return (
-    <div className="max-w-md mx-auto p-4 space-y-6">
-      <h1 className="text-2xl font-bold text-center">Login</h1>
+    <div className="max-w-md mx-auto p-6 mt-10 shadow-md border border-red-300 rounded-lg bg-white">
+      <h1 className="text-3xl font-bold text-center text-red-600 mb-4">Login</h1>
 
       {errorMsg && <p className="text-red-500 text-center">{errorMsg}</p>}
 
@@ -47,7 +52,7 @@ export default function LoginPage() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full p-2 border rounded"
+          className="w-full p-2 border border-red-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500"
         />
 
         <input
@@ -56,20 +61,21 @@ export default function LoginPage() {
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-2 border rounded"
+          className="w-full p-2 border border-red-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500"
         />
 
         <button
           type="submit"
-          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
+          className="w-full bg-red-600 text-white py-2 rounded hover:bg-red-700 transition"
+          disabled={loading}
         >
-          Login
+          {loading ? "Logging in..." : "Login"}
         </button>
       </form>
 
-      <p className="text-center">
+      <p className="text-center mt-4 text-sm">
         Don't have an account?{" "}
-        <a href="/auth/register" className="text-blue-600 hover:underline">
+        <a href="/auth/register" className="text-red-600 hover:underline">
           Register
         </a>
       </p>

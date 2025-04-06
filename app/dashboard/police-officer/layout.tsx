@@ -1,17 +1,18 @@
-import "./globals.css";
 import type { Metadata } from "next";
 import type React from "react";
 
 import CustomSessionProvider from "@/components/providers/session-provider";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
+import { OfficerDashboard } from "@/components/officer-dashboard";
 
 export const metadata: Metadata = {
-  title: "Police Portal",
-  description: "Dashboard for Police Stations and Officers",
+  title: "Police Officer Dashboard",
+  description: "Dashboard for Police Officers",
 };
 
-export default function RootLayout({
+export default function PoliceOfficerLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -21,8 +22,10 @@ export default function RootLayout({
       <body>
         <CustomSessionProvider>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-            {children}
-            <Toaster />
+            <SidebarProvider>
+              <OfficerDashboard>{children}</OfficerDashboard>
+              <Toaster />
+            </SidebarProvider>
           </ThemeProvider>
         </CustomSessionProvider>
       </body>
